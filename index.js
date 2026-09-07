@@ -43,7 +43,7 @@ client.on('ready', async () => {
   console.log(`[SUCCESS] Logged in as ${client.user.username}`);
 
   client.user.setPresence({
-    activities: [{ name: 'Online 24/7 ✨', type: 'PLAYING' }],
+    activities: [{ name: 'Online 24/7', type: 'PLAYING' }],
     status: 'online',
   });
 
