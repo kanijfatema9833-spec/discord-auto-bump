@@ -1,0 +1,13 @@
+{
+  "name": "discord-auto-bump",
+  "version": "1.0.0",
+  "description": "24/7 Discord Status with Auto Bumper for OneBump",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js-selfbot-v13": "^2.15.2",
+    "express": "^4.18.2"
+  }
+}
