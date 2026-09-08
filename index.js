@@ -29,12 +29,12 @@ async function sendBumpCommand() {
     await channel.sendSlash(ONEBUMP_BOT_ID, 'bump');
     console.log(`[BUMP SUCCESS] ${new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' })} - Sent /bump command to channel: ${channel.name}`);
 
-    // আপনার অ্যাকাউন্টে DM পাঠানো
+    // আপনার অ্যাকাউন্টে প্রপার পিং সহ DM পাঠানো
     try {
       const myUser = await client.users.fetch(MY_USER_ID);
       if (myUser) {
-        await myUser.send('@ahnafkarim0837 Server Bumped!');
-        console.log('[SUCCESS] Sent DM notification.');
+        await myUser.send(`<@${MY_USER_ID}> Server Bumped!`);
+        console.log('[SUCCESS] Sent DM notification with ping.');
       }
     } catch (dmError) {
       console.error('[ERROR] DM পাঠাতে সমস্যা হয়েছে:', dmError.message);
