@@ -61,9 +61,10 @@ function scheduleNextBump() {
 client.on('ready', async () => {
   console.log(`[SUCCESS] Logged in as ${client.user.username}`);
 
+  // স্ট্যাটাস 'dnd' (Do Not Disturb) এবং কোনো Activity থাকবে না
   client.user.setPresence({
-    activities: nothing
-    status: 'do not disturb',
+    activities: [],
+    status: 'dnd',
   });
 
   // ১ম বাম্প সাথে সাথে সম্পন্ন হবে এবং পরবর্তী বাম্পগুলোর জন্য টাইমার চালু হবে
