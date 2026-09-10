@@ -17,6 +17,41 @@ const BUMP_CHANNEL_ID = '1538947427669643434';
 const ONEBUMP_BOT_ID = '1028956609382199346';
 const MY_USER_ID = '1259855596887478308';
 
+// GMT+6 অনুযায়ী স্ট্যাটাস আপডেট করার ফাংশন
+function updateTimeBasedStatus() {
+  if (!client.user) return;
+
+  // ঢাকা সময়ের বর্তমান ঘণ্টা (0-23) বের করা
+  const dhakaHour = parseInt(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Dhaka',
+      hour: 'numeric',
+      hour12: false,
+    }).format(new Date()),
+    10
+  );
+
+  let statusToSet = 'online';
+
+  if (dhakaHour >= 6 && dhakaHour < 14) {
+    // সকাল ৬:০০ থেকে দুপুর ১:৫৯ পর্যন্ত Online
+    statusToSet = 'online';
+  } else if (dhakaHour >= 14 && dhakaHour < 22) {
+    // দুপুর ২:০০ থেকে রাত ৯:৫৯ পর্যন্ত Idle
+    statusToSet = 'idle';
+  } else {
+    // রাত ১০:০০ থেকে সকাল ৫:৫৯ পর্যন্ত DND
+    statusToSet = 'dnd';
+  }
+
+  client.user.setPresence({
+    activities: [],
+    status: statusToSet,
+  });
+
+  console.log(`[STATUS UPDATE] Current Dhaka Hour: ${dhakaHour}:00 - Presence set to: ${statusToSet}`);
+}
+
 async function sendBumpCommand() {
   try {
     const channel = await client.channels.fetch(BUMP_CHANNEL_ID);
@@ -61,11 +96,11 @@ function scheduleNextBump() {
 client.on('ready', async () => {
   console.log(`[SUCCESS] Logged in as ${client.user.username}`);
 
-  // স্ট্যাটাস 'dnd' (Do Not Disturb) এবং কোনো Activity থাকবে না
-  client.user.setPresence({
-    activities: [],
-    status: 'dnd',
-  });
+  // বট চালুর সাথে সাথে স্ট্যাটাস আপডেট করা
+  updateTimeBasedStatus();
+
+  // প্রতি ১৫ মিনিট পর পর বাংলাদেশ সময় চেক করে স্ট্যাটাস আপডেট রাখা
+  setInterval(updateTimeBasedStatus, 15 * 60 * 1000);
 
   // ১ম বাম্প সাথে সাথে সম্পন্ন হবে এবং পরবর্তী বাম্পগুলোর জন্য টাইমার চালু হবে
   await sendBumpCommand();
