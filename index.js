@@ -62,8 +62,8 @@ client.on('ready', async () => {
   console.log(`[SUCCESS] Logged in as ${client.user.username}`);
 
   client.user.setPresence({
-    activities: [{ name: 'Roblox & Minecraft', type: 'PLAYING' }],
-    status: 'online',
+    activities: nothing
+    status: 'do not disturb',
   });
 
   // ১ম বাম্প সাথে সাথে সম্পন্ন হবে এবং পরবর্তী বাম্পগুলোর জন্য টাইমার চালু হবে
