@@ -33,14 +33,14 @@ function updateTimeBasedStatus() {
 
   let statusToSet = 'online';
 
-  if (dhakaHour >= 6 && dhakaHour < 14) {
-    // সকাল ৬:০০ থেকে দুপুর ১:৫৯ পর্যন্ত Online
+  if (dhakaHour >= 0 && dhakaHour < 8) {
+    // ১২:০০ AM (রাত ১২টা) থেকে ৭:৫৯ AM পর্যন্ত Online
     statusToSet = 'online';
-  } else if (dhakaHour >= 14 && dhakaHour < 22) {
-    // দুপুর ২:০০ থেকে রাত ৯:৫৯ পর্যন্ত Idle
+  } else if (dhakaHour >= 8 && dhakaHour < 16) {
+    // ৮:০০ AM থেকে ৩:৫৯ PM (বিকাল ৪টার আগে) পর্যন্ত Idle
     statusToSet = 'idle';
   } else {
-    // রাত ১০:০০ থেকে সকাল ৫:৫৯ পর্যন্ত DND
+    // ৪:০০ PM (বিকাল ৪টা) থেকে ১১:৫৯ PM (রাত ১২টার আগে) পর্যন্ত DND
     statusToSet = 'dnd';
   }
 
