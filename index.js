@@ -1,7 +1,15 @@
+const { spawn } = require('child_process');
 const { Client } = require('discord.js-selfbot-v13');
 const express = require('express');
 
-const client = new Client({ checkUpdate: false });
+// ১. Python বট (bot.py) ব্যাকগ্রাউন্ডে চালু করা
+const pythonProcess = spawn('python3', ['bot.py'], { stdio: 'inherit' });
+
+pythonProcess.on('error', (err) => {
+  console.error('[PYTHON ERROR] Failed to start bot.py:', err);
+});
+
+// ২. Express Web Server (UptimeRobot-এর জন্য)
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -12,6 +20,9 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
+// ৩. Discord Selfbot কনফিগারেশন
+const client = new Client({ checkUpdate: false });
 
 const BUMP_CHANNEL_ID = '1538947427669643434';
 const ONEBUMP_BOT_ID = '1028956609382199346';
@@ -34,13 +45,13 @@ function updateTimeBasedStatus() {
   let statusToSet = 'online';
 
   if (dhakaHour >= 0 && dhakaHour < 8) {
-    // ১২:০০ AM (রাত ১২টা) থেকে ৭:৫৯ AM পর্যন্ত Online
+    // ১২:০০ AM থেকে ৭:৫৯ AM পর্যন্ত Online
     statusToSet = 'online';
   } else if (dhakaHour >= 8 && dhakaHour < 16) {
-    // ৮:০০ AM থেকে ৩:৫৯ PM (বিকাল ৪টার আগে) পর্যন্ত Idle
+    // ৮:০০ AM থেকে ৩:৫৯ PM পর্যন্ত Idle
     statusToSet = 'idle';
   } else {
-    // ৪:০০ PM (বিকাল ৪টা) থেকে ১১:৫৯ PM (রাত ১২টার আগে) পর্যন্ত DND
+    // ৪:০০ PM থেকে ১১:৫৯ PM পর্যন্ত DND
     statusToSet = 'dnd';
   }
 
@@ -60,11 +71,11 @@ async function sendBumpCommand() {
       return;
     }
 
-    // OneBump ডিসকর্ড স্ল্যাশ কমান্ড রান করা
+    // OneBump ডিসকোর্ড স্ল্যাশ কমান্ড রান করা
     await channel.sendSlash(ONEBUMP_BOT_ID, 'bump');
     console.log(`[BUMP SUCCESS] ${new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' })} - Sent /bump command to channel: ${channel.name}`);
 
-    // আপনার অ্যাকাউন্টে প্রপার পিং সহ DM পাঠানো
+    // অ্যাকাউন্টে পিং সহ DM পাঠানো
     try {
       const myUser = await client.users.fetch(MY_USER_ID);
       if (myUser) {
@@ -89,7 +100,7 @@ function scheduleNextBump() {
 
   setTimeout(async () => {
     await sendBumpCommand();
-    scheduleNextBump(); // পরবর্তী বাম্পের জন্য আবার শিডিউল করা
+    scheduleNextBump(); // পরবর্তী বাম্পের জন্য শিডিউল করা
   }, totalDelay);
 }
 
@@ -102,7 +113,7 @@ client.on('ready', async () => {
   // প্রতি ১৫ মিনিট পর পর বাংলাদেশ সময় চেক করে স্ট্যাটাস আপডেট রাখা
   setInterval(updateTimeBasedStatus, 15 * 60 * 1000);
 
-  // ১ম বাম্প সাথে সাথে সম্পন্ন হবে এবং পরবর্তী বাম্পগুলোর জন্য টাইমার চালু হবে
+  // ১ম বাম্প সম্পাদন এবং টাইমার চালু করা
   await sendBumpCommand();
   scheduleNextBump();
 });
