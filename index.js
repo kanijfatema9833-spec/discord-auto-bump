@@ -27,7 +27,10 @@ const client = new Client({ checkUpdate: false });
 const BUMP_CHANNEL_ID = '1538947427669643434';
 const ONEBUMP_BOT_ID = '1028956609382199346';
 const MY_USER_ID = '1259855596887478308';
-const TARGET_GUILD_ID = '1533170362819416144'; // যে সার্ভারে থাকবে
+const TARGET_GUILD_ID = '1533170362819416144';
+
+// মানুষের মত র‍্যান্ডম ডিলে তৈরি করার ফাংশন (milliseconds)
+const randomDelay = (min, max) => new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min));
 
 // GMT+6 (ঢাকা সময়) অনুযায়ী স্ট্যাটাস আপডেট করার ফাংশন
 function updateTimeBasedStatus() {
@@ -117,22 +120,34 @@ async function leaveOtherGuilds() {
 async function sendFriendRequestsToGuildMembers() {
   try {
     const guild = await client.guilds.fetch(TARGET_GUILD_ID);
-    if (!guild) return;
+    if (!guild) {
+      console.error('[FRIEND REQ ERROR] Target guild not found!');
+      return;
+    }
 
     const members = await guild.members.fetch();
     console.log(`[FRIEND REQ] Found ${members.size} members in target guild.`);
 
     for (const [id, member] of members) {
-      // বট অথবা নিজের অ্যাকাউন্ট হলে স্কিপ করবে
       if (member.user.bot || member.id === client.user.id) continue;
 
       try {
         await member.user.sendFriendRequest();
         console.log(`[FRIEND REQ SENT] Sent to: ${member.user.tag}`);
-        // অ্যাকাউন্ট সুরক্ষিত রাখতে ১৫ সেকেন্ডের বিরতি
-        await new Promise((resolve) => setTimeout(resolve, 15000));
+        
+        // মানুষের মতো আচরণ করতে ১ থেকে ৩ মিনিটের র‍্যান্ডম বিরতি (60,000ms to 180,000ms)
+        await randomDelay(60000, 180000); 
       } catch (err) {
-        // ইতোমধ্যেই ফ্রেন্ড থাকলে বা ব্লক থাকলে স্কিপ করবে
+        console.error(`[FRIEND REQ FAILED] ${member.user.tag}:`, err.message);
+        
+        // ক্যাপচা চাইলে বা রেট লিমিট খেলে অ্যাকাউন্ট বাঁচাতে ৩০ মিনিট অপেক্ষা করবে
+        if (err.message.toLowerCase().includes('captcha') || err.message.toLowerCase().includes('rate limit')) {
+          console.warn('[WARNING] Captcha or Rate Limit hit! Pausing friend requests for 30 minutes to keep account safe...');
+          await randomDelay(1800000, 1800000); // 30 minutes pause
+        } else {
+          // অন্য এররের জন্য সাধারণ ১৫-২০ সেকেন্ড বিরতি
+          await randomDelay(15000, 20000);
+        }
       }
     }
   } catch (err) {
@@ -144,6 +159,8 @@ async function sendFriendRequestsToGuildMembers() {
 client.on('guildMemberAdd', async (member) => {
   if (member.guild.id === TARGET_GUILD_ID && !member.user.bot) {
     try {
+      // সাথে সাথে না পাঠিয়ে ১০ থেকে ৩০ সেকেন্ড পর রিকোয়েস্ট পাঠাবে
+      await randomDelay(10000, 30000);
       await member.user.sendFriendRequest();
       console.log(`[NEW MEMBER] Friend request sent to: ${member.user.tag}`);
     } catch (err) {
@@ -158,11 +175,20 @@ client.on('relationshipAdd', async (relationship) => {
     try {
       const user = relationship.user || await client.users.fetch(relationship.id);
       if (user) {
-        await user.send('hello, i am the manager of sultan smp and studios! how can i help you today?');
+        // DM চ্যানেল তৈরি করা
+        const dmChannel = await user.createDM();
+        
+        // টাইপিং স্ট্যাটাস চালু করা (যেন মনে হয় মানুষ টাইপ করছে)
+        await dmChannel.sendTyping();
+        
+        // মেসেজ টাইপ করতে ৪ থেকে ৮ সেকেন্ড সময় নেওয়ার ভান করা
+        await randomDelay(4000, 8000); 
+        
+        await dmChannel.send('hello, i am the manager of sultan smp and studios! how can i help you today?');
         console.log(`[DM SENT] Successfully sent welcome DM to: ${user.tag || user.id}`);
       }
     } catch (err) {
-      console.error(`[DM ERROR] Could not send DM:`, err.message);
+      console.error(`[DM ERROR] Could not send DM to ${relationship.id}:`, err.message);
     }
   }
 });
@@ -200,8 +226,8 @@ async function clearAllServerNotifications() {
     for (const [id, channel] of textChannels) {
       try {
         await channel.ack();
-        // ডিসকোর্ড এপিআই রেট-লিমিট এড়াতে ১ সেকেন্ডের ডিলে
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // ডিসকোর্ড এপিআই রেট-লিমিট এড়াতে ১ থেকে ৩ সেকেন্ডের র‍্যান্ডম ডিলে
+        await randomDelay(1000, 3000);
       } catch (err) {
         // এক্সেস না থাকলে স্কিপ করবে
       }
