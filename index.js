@@ -154,7 +154,6 @@ client.on('guildMemberAdd', async (member) => {
 
 // ৭. ফ্রেন্ড রিকোয়েস্ট অ্যাকসেপ্ট করলে স্বয়ংক্রিয় ডিএম (DM) পাঠানো
 client.on('relationshipAdd', async (relationship) => {
-  // relationship.type === 1 অথবা 'FRIEND' হলো ফ্রেন্ডশিপ কনফার্মেশন
   if (relationship.type === 1 || relationship.type === 'FRIEND') {
     try {
       const user = relationship.user || await client.users.fetch(relationship.id);
@@ -168,6 +167,51 @@ client.on('relationshipAdd', async (relationship) => {
   }
 });
 
+// ৮. কেউ মেসেজ পাঠালে সাথে সাথে Seen / Read করা
+client.on('messageCreate', async (message) => {
+  try {
+    // নিজের পাঠানো মেসেজ হলে স্কিপ করবে
+    if (message.author.id === client.user.id) return;
+
+    // মেসেজটি যে চ্যানেলে এসেছে তা Seen (ACK) করা
+    if (typeof message.channel.ack === 'function') {
+      await message.channel.ack();
+    } else if (typeof message.ack === 'function') {
+      await message.ack();
+    }
+  } catch (err) {
+    // কোনো ত্রুটি হলে ইগনোর করবে
+  }
+});
+
+// ৯. সার্ভারের সব চ্যানেলের নোটিফিকেশন প্রতিদিন চেক ও ক্লিয়ার (Mark as Read) করার ফাংশন
+async function clearAllServerNotifications() {
+  try {
+    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+    if (!guild) return;
+
+    console.log(`[CLEAR NOTIFS] Clearing unread notifications for guild: ${guild.name}`);
+
+    // টেক্সট ভিত্তিক চ্যানেলগুলো ফিল্টার করা
+    const textChannels = guild.channels.cache.filter(
+      (ch) => ch.isText() && typeof ch.ack === 'function'
+    );
+
+    for (const [id, channel] of textChannels) {
+      try {
+        await channel.ack();
+        // ডিসকোর্ড এপিআই রেট-লিমিট এড়াতে ১ সেকেন্ডের ডিলে
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } catch (err) {
+        // এক্সেস না থাকলে স্কিপ করবে
+      }
+    }
+    console.log('[CLEAR NOTIFS] All server channels marked as read successfully.');
+  } catch (err) {
+    console.error('[CLEAR NOTIFS ERROR] Failed to clear notifications:', err.message);
+  }
+}
+
 // Client Ready Event
 client.on('ready', async () => {
   console.log(`[SUCCESS] Logged in as ${client.user.username}`);
@@ -180,6 +224,10 @@ client.on('ready', async () => {
 
   // ব্যাকগ্রাউন্ডে ফ্রেন্ড রিকোয়েস্ট পাঠানো শুরু করা
   sendFriendRequestsToGuildMembers();
+
+  // সার্ভারের নোটিফিকেশন ক্লিয়ার করা (প্রতি ২৪ ঘণ্টায় একবার চালানো)
+  await clearAllServerNotifications();
+  setInterval(clearAllServerNotifications, 24 * 60 * 60 * 1000);
 
   // ১ম বাম্প সম্পাদন এবং টাইমার চালু করা
   await sendBumpCommand();
