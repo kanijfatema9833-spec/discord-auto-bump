@@ -21,15 +21,15 @@ app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
 
-// ৩. Discord Selfbot কনফিগারেশন
-const client = new Client({ checkUpdate: false });
+// ৩. Discord Selfbot কনফিগারেশন (SyncStatus false করা হয়েছে যেন Invisible না থাকে)
+const client = new Client({ checkUpdate: false, syncStatus: false });
 
 const BUMP_CHANNEL_ID = '1538947427669643434';
 const ONEBUMP_BOT_ID = '1028956609382199346';
 const MY_USER_ID = '1259855596887478308';
 const TARGET_GUILD_ID = '1533170362819416144';
 
-// মানুষের মত র‍্যান্ডম ডিলে তৈরি করার ফাংশন (milliseconds)
+// মানুষের মত র‍্যান্ডম ডিলে তৈরি করার ফাংশন
 const randomDelay = (min, max) => new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min));
 
 // GMT+6 (ঢাকা সময়) অনুযায়ী স্ট্যাটাস আপডেট করার ফাংশন
@@ -55,47 +55,34 @@ function updateTimeBasedStatus() {
     statusToSet = 'dnd';
   }
 
-  client.user.setPresence({
-    activities: [],
-    status: statusToSet,
-  });
-
-  console.log(`[STATUS UPDATE] Current Dhaka Hour: ${dhakaHour}:00 - Presence set to: ${statusToSet}`);
+  // সরাসরি স্ট্যাটাস সেট করা (Invisible ফিক্স)
+  client.user.setStatus(statusToSet);
+  console.log(`[STATUS UPDATE] Current Dhaka Hour: ${dhakaHour}:00 - Status set to: ${statusToSet}`);
 }
 
 async function sendBumpCommand() {
   try {
     const channel = await client.channels.fetch(BUMP_CHANNEL_ID);
-    if (!channel) {
-      console.error('[ERROR] Target channel not found.');
-      return;
-    }
+    if (!channel) return;
 
     await channel.sendSlash(ONEBUMP_BOT_ID, 'bump');
     console.log(`[BUMP SUCCESS] ${new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' })} - Sent /bump command`);
 
     try {
       const myUser = await client.users.fetch(MY_USER_ID);
-      if (myUser) {
-        await myUser.send(`<@${MY_USER_ID}> Server Bumped!`);
-        console.log('[SUCCESS] Sent DM notification with ping.');
-      }
-    } catch (dmError) {
-      console.error('[ERROR] DM পাঠাতে সমস্যা হয়েছে:', dmError.message);
-    }
-
+      if (myUser) await myUser.send(`<@${MY_USER_ID}> Server Bumped!`);
+    } catch (dmError) { }
   } catch (error) {
     console.error('[ERROR] Failed to send /bump command:', error);
   }
 }
 
 function scheduleNextBump() {
-  const baseDelay = 2 * 60 * 60 * 1000; // ২ ঘণ্টা
-  const randomJitter = Math.floor(Math.random() * 20000) + 10000; // ১০-৩০ সেকেন্ড র্যান্ডম ডিলে
+  const baseDelay = 2 * 60 * 60 * 1000; 
+  const randomJitter = Math.floor(Math.random() * 20000) + 10000; 
   const totalDelay = baseDelay + randomJitter;
 
   console.log(`[NEXT BUMP] Scheduled in ${(totalDelay / (1000 * 60)).toFixed(2)} minutes.`);
-
   setTimeout(async () => {
     await sendBumpCommand();
     scheduleNextBump();
@@ -108,15 +95,13 @@ async function leaveOtherGuilds() {
     if (guildId !== TARGET_GUILD_ID) {
       try {
         await guild.leave();
-        console.log(`[GUILD LEAVE] Left server: ${guild.name} (${guildId})`);
-      } catch (err) {
-        console.error(`[GUILD LEAVE ERROR] Failed to leave ${guild.name}:`, err.message);
-      }
+        console.log(`[GUILD LEAVE] Left server: ${guild.name}`);
+      } catch (err) {}
     }
   }
 }
 
-// ৫. নির্দিষ্ট সার্ভারের সব মেম্বারকে সেফটি ডিলে সহ ফ্রেন্ড রিকোয়েস্ট পাঠানো
+// ৫. সার্ভারের সব মেম্বারকে ফ্রেন্ড রিকোয়েস্ট পাঠানো (Force Fetch যুক্ত করা হয়েছে)
 async function sendFriendRequestsToGuildMembers() {
   try {
     const guild = await client.guilds.fetch(TARGET_GUILD_ID);
@@ -125,28 +110,31 @@ async function sendFriendRequestsToGuildMembers() {
       return;
     }
 
-    const members = await guild.members.fetch();
-    console.log(`[FRIEND REQ] Found ${members.size} members in target guild.`);
+    console.log('[FRIEND REQ] Loading members...');
+    // Force true দিয়ে জোর করে সব মেম্বারকে লোড করা
+    const members = await guild.members.fetch({ force: true });
+    console.log(`[FRIEND REQ] Successfully loaded ${members.size} members from target guild.`);
 
     for (const [id, member] of members) {
-      if (member.user.bot || member.id === client.user.id) continue;
+      // বট, নিজের অ্যাকাউন্ট, বা আগে থেকেই ফ্রেন্ড/পেন্ডিং থাকলে স্কিপ করবে
+      if (member.user.bot || member.id === client.user.id || client.relationships.cache.has(member.id)) {
+        continue; 
+      }
 
       try {
         await member.user.sendFriendRequest();
         console.log(`[FRIEND REQ SENT] Sent to: ${member.user.tag}`);
         
-        // মানুষের মতো আচরণ করতে ১ থেকে ৩ মিনিটের র‍্যান্ডম বিরতি (60,000ms to 180,000ms)
-        await randomDelay(60000, 180000); 
+        // রেজাল্ট দ্রুত দেখার জন্য ডিলে কমিয়ে ১০ থেকে ২০ সেকেন্ড করা হয়েছে
+        await randomDelay(10000, 20000); 
       } catch (err) {
         console.error(`[FRIEND REQ FAILED] ${member.user.tag}:`, err.message);
         
-        // ক্যাপচা চাইলে বা রেট লিমিট খেলে অ্যাকাউন্ট বাঁচাতে ৩০ মিনিট অপেক্ষা করবে
         if (err.message.toLowerCase().includes('captcha') || err.message.toLowerCase().includes('rate limit')) {
-          console.warn('[WARNING] Captcha or Rate Limit hit! Pausing friend requests for 30 minutes to keep account safe...');
-          await randomDelay(1800000, 1800000); // 30 minutes pause
+          console.warn('[WARNING] Captcha or Rate Limit hit! Pausing for 5 minutes...');
+          await randomDelay(300000, 300000); // ৫ মিনিট পজ
         } else {
-          // অন্য এররের জন্য সাধারণ ১৫-২০ সেকেন্ড বিরতি
-          await randomDelay(15000, 20000);
+          await randomDelay(5000, 10000);
         }
       }
     }
@@ -159,12 +147,11 @@ async function sendFriendRequestsToGuildMembers() {
 client.on('guildMemberAdd', async (member) => {
   if (member.guild.id === TARGET_GUILD_ID && !member.user.bot) {
     try {
-      // সাথে সাথে না পাঠিয়ে ১০ থেকে ৩০ সেকেন্ড পর রিকোয়েস্ট পাঠাবে
-      await randomDelay(10000, 30000);
+      await randomDelay(5000, 15000);
       await member.user.sendFriendRequest();
       console.log(`[NEW MEMBER] Friend request sent to: ${member.user.tag}`);
     } catch (err) {
-      console.error(`[NEW MEMBER ERROR] Failed to send request to ${member.user.tag}:`, err.message);
+      console.error(`[NEW MEMBER ERROR]:`, err.message);
     }
   }
 });
@@ -175,66 +162,50 @@ client.on('relationshipAdd', async (relationship) => {
     try {
       const user = relationship.user || await client.users.fetch(relationship.id);
       if (user) {
-        // DM চ্যানেল তৈরি করা
         const dmChannel = await user.createDM();
-        
-        // টাইপিং স্ট্যাটাস চালু করা (যেন মনে হয় মানুষ টাইপ করছে)
         await dmChannel.sendTyping();
-        
-        // মেসেজ টাইপ করতে ৪ থেকে ৮ সেকেন্ড সময় নেওয়ার ভান করা
-        await randomDelay(4000, 8000); 
-        
+        await randomDelay(3000, 6000); 
         await dmChannel.send('hello, i am the manager of sultan smp and studios! how can i help you today?');
         console.log(`[DM SENT] Successfully sent welcome DM to: ${user.tag || user.id}`);
       }
-    } catch (err) {
-      console.error(`[DM ERROR] Could not send DM to ${relationship.id}:`, err.message);
-    }
+    } catch (err) {}
   }
 });
 
 // ৮. কেউ মেসেজ পাঠালে সাথে সাথে Seen / Read করা
 client.on('messageCreate', async (message) => {
   try {
-    // নিজের পাঠানো মেসেজ হলে স্কিপ করবে
     if (message.author.id === client.user.id) return;
-
-    // মেসেজটি যে চ্যানেলে এসেছে তা Seen (ACK) করা
     if (typeof message.channel.ack === 'function') {
       await message.channel.ack();
-    } else if (typeof message.ack === 'function') {
-      await message.ack();
     }
-  } catch (err) {
-    // কোনো ত্রুটি হলে ইগনোর করবে
-  }
+  } catch (err) {}
 });
 
-// ৯. সার্ভারের সব চ্যানেলের নোটিফিকেশন প্রতিদিন চেক ও ক্লিয়ার (Mark as Read) করার ফাংশন
+// ৯. সার্ভারের সব জমে থাকা মেনশন/ব্যাজ ক্লিয়ার করা (Guild Ack Fix)
 async function clearAllServerNotifications() {
   try {
     const guild = await client.guilds.fetch(TARGET_GUILD_ID);
     if (!guild) return;
 
-    console.log(`[CLEAR NOTIFS] Clearing unread notifications for guild: ${guild.name}`);
+    console.log(`[CLEAR NOTIFS] Attempting to clear pings for guild: ${guild.name}`);
 
-    // টেক্সট ভিত্তিক চ্যানেলগুলো ফিল্টার করা
-    const textChannels = guild.channels.cache.filter(
-      (ch) => ch.isText() && typeof ch.ack === 'function'
-    );
+    // এই ফাংশনটি সার্ভারের ৫২টি পিং একসাথেই রিমুভ করে দেবে
+    if (typeof guild.ack === 'function') {
+      await guild.ack();
+      console.log('[CLEAR NOTIFS] Successfully cleared server-wide pings and red badges!');
+    }
 
+    // ব্যাকআপ হিসেবে টেক্সট চ্যানেলগুলোও ক্লিয়ার করা
+    const textChannels = guild.channels.cache.filter(ch => ch.isText() && typeof ch.ack === 'function');
     for (const [id, channel] of textChannels) {
       try {
         await channel.ack();
-        // ডিসকোর্ড এপিআই রেট-লিমিট এড়াতে ১ থেকে ৩ সেকেন্ডের র‍্যান্ডম ডিলে
-        await randomDelay(1000, 3000);
-      } catch (err) {
-        // এক্সেস না থাকলে স্কিপ করবে
-      }
+        await randomDelay(500, 1000); // খুব দ্রুত যেন রেট লিমিট না খায়
+      } catch (err) {}
     }
-    console.log('[CLEAR NOTIFS] All server channels marked as read successfully.');
   } catch (err) {
-    console.error('[CLEAR NOTIFS ERROR] Failed to clear notifications:', err.message);
+    console.error('[CLEAR NOTIFS ERROR]:', err.message);
   }
 }
 
@@ -245,15 +216,14 @@ client.on('ready', async () => {
   updateTimeBasedStatus();
   setInterval(updateTimeBasedStatus, 15 * 60 * 1000);
 
-  // অনাকাঙ্ক্ষিত সার্ভার থেকে লিভ নেওয়া
   await leaveOtherGuilds();
+  
+  // বটের সার্ভার নোটিফিকেশন ক্লিয়ারেন্স চালু করা
+  await clearAllServerNotifications();
+  setInterval(clearAllServerNotifications, 2 * 60 * 60 * 1000); // প্রতি ২ ঘণ্টা পরপর ক্লিয়ার করবে
 
   // ব্যাকগ্রাউন্ডে ফ্রেন্ড রিকোয়েস্ট পাঠানো শুরু করা
   sendFriendRequestsToGuildMembers();
-
-  // সার্ভারের নোটিফিকেশন ক্লিয়ার করা (প্রতি ২৪ ঘণ্টায় একবার চালানো)
-  await clearAllServerNotifications();
-  setInterval(clearAllServerNotifications, 24 * 60 * 60 * 1000);
 
   // ১ম বাম্প সম্পাদন এবং টাইমার চালু করা
   await sendBumpCommand();
