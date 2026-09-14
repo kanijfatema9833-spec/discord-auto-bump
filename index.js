@@ -77,9 +77,10 @@ async function sendBumpCommand() {
 }
 
 function scheduleNextBump() {
-  // ১ ঘণ্টা পর পর বাম্প করার জন্য সময় পরিবর্তন করা হলো (১ ঘণ্টা = ১ * ৬০ * ৬০ * ১০০০ মিলিসেকেন্ড)
-  const baseDelay = 1 * 60 * 60 * 1000; 
-  const randomJitter = Math.floor(Math.random() * 20000) + 10000; // ১০-৩০ সেকেন্ডের র্যান্ডম ডিলে
+  // ২ ঘণ্টা পর পর বাম্প করার জন্য সময় (২ ঘণ্টা = ২ * ৬০ * ৬০ * ১০০০ মিলিসেকেন্ড)
+  const baseDelay = 2 * 60 * 60 * 1000; 
+  // ৩ থেকে ১৫ সেকেন্ডের এলোমেলো (Random) ডিলে
+  const randomJitter = Math.floor(Math.random() * 12000) + 3000; 
   const totalDelay = baseDelay + randomJitter;
 
   console.log(`[NEXT BUMP] Scheduled in ${(totalDelay / (1000 * 60)).toFixed(2)} minutes.`);
@@ -173,7 +174,6 @@ client.on('messageCreate', async (message) => {
   try {
     if (message.author.id === client.user.id) return;
     
-    // মেসেজ আসার সাথে সাথেই চ্যানেলটি Ack/Seen করে দেবে
     if (typeof message.channel.ack === 'function') {
       await message.channel.ack();
     }
@@ -186,18 +186,16 @@ async function clearAllServerNotifications() {
     const guild = await client.guilds.fetch(TARGET_GUILD_ID);
     if (!guild) return;
 
-    // পুরো সার্ভারের সমস্ত পিন্গ একবারে ক্লিয়ার করবে
     if (typeof guild.ack === 'function') {
       await guild.ack();
       console.log(`[CLEAR NOTIFS] ${new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' })} - Successfully cleared all server-wide pings and red badges!`);
     }
 
-    // ব্যাকআপ হিসেবে টেক্সট চ্যানেলগুলোও ক্লিয়ার করা
     const textChannels = guild.channels.cache.filter(ch => ch.isText() && typeof ch.ack === 'function');
     for (const [id, channel] of textChannels) {
       try {
         await channel.ack();
-        await randomDelay(200, 500); // রেট লিমিট এড়াতে ছোট বিরতি
+        await randomDelay(200, 500);
       } catch (err) {}
     }
   } catch (err) {
@@ -214,14 +212,12 @@ client.on('ready', async () => {
 
   await leaveOtherGuilds();
   
-  // বটের সার্ভার নোটিফিকেশন ক্লিয়ারেন্স চালু করা (প্রতি ১০ মিনিট পর পর)
   await clearAllServerNotifications();
   setInterval(clearAllServerNotifications, 10 * 60 * 1000); 
 
-  // চ্যানেলের মেম্বারদের ফ্রেন্ড রিকোয়েস্ট পাঠানো চালু করা
   sendFriendRequestsFromChannel();
 
-  // ১ম বাম্প সম্পাদন এবং ১ ঘণ্টার টাইমার চালু করা
+  // ১ম বাম্প সম্পাদন এবং ২ ঘণ্টার টাইমার চালু করা
   await sendBumpCommand();
   scheduleNextBump();
 });
