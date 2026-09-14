@@ -77,7 +77,7 @@ async function sendBumpCommand() {
 }
 
 function scheduleNextBump() {
-  // ২ ঘণ্টা পর পর বাম্প করার জন্য সময় (২ ঘণ্টা = ২ * ৬০ * ৬০ * ১০০০ মিলিসেকেন্ড)
+  // ২ ঘণ্টা পর পর বাম্প করার সময়
   const baseDelay = 2 * 60 * 60 * 1000; 
   // ৩ থেকে ১৫ সেকেন্ডের এলোমেলো (Random) ডিলে
   const randomJitter = Math.floor(Math.random() * 12000) + 3000; 
@@ -153,10 +153,26 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
-// ৭. ফ্রেন্ড রিকোয়েস্ট অ্যাকসেপ্ট করলে স্বয়ংক্রিয় ডিএম (DM) পাঠানো
+// ৭. ইনকামিং ফ্রেন্ড রিকোয়েস্ট অটো এক্সেপ্ট করা এবং স্বয়ংক্রিয় ডিএম (DM) পাঠানো
 client.on('relationshipAdd', async (relationship) => {
-  if (relationship.type === 1 || relationship.type === 'FRIEND') {
-    try {
+  try {
+    // কেউ ফ্রেন্ড রিকোয়েস্ট পাঠালে (Type 3 / PENDING_INCOMING)
+    if (relationship.type === 3 || relationship.type === 'PENDING_INCOMING' || relationship.type === 'INCOMING_REQUEST') {
+      await randomDelay(2000, 5000); // ২ থেকে ৫ সেকেন্ড বিরতি
+      
+      // ফ্রেন্ড রিকোয়েস্ট এক্সেপ্ট করা
+      if (typeof relationship.add === 'function') {
+        await relationship.add();
+      } else if (relationship.user && typeof relationship.user.sendFriendRequest === 'function') {
+        await relationship.user.sendFriendRequest();
+      } else {
+        await client.relationships.addFriend(relationship.id);
+      }
+      console.log(`[FRIEND REQ ACCEPTED] Accepted request from: ${relationship.user?.tag || relationship.id}`);
+    }
+
+    // ফ্রেন্ড লিস্টে যুক্ত হলে / এক্সেপ্ট হওয়া শেষ হলে (Type 1 / FRIEND)
+    if (relationship.type === 1 || relationship.type === 'FRIEND') {
       const user = relationship.user || await client.users.fetch(relationship.id);
       if (user) {
         const dmChannel = await user.createDM();
@@ -165,7 +181,9 @@ client.on('relationshipAdd', async (relationship) => {
         await dmChannel.send('hello, i am the manager of sultan smp and studios! how can i help you today?');
         console.log(`[DM SENT] Successfully sent welcome DM to: ${user.tag || user.id}`);
       }
-    } catch (err) {}
+    }
+  } catch (err) {
+    console.error('[RELATIONSHIP ERROR]:', err.message);
   }
 });
 
